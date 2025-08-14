@@ -1,0 +1,79 @@
+name: Scrape Bluestar
+
+on:
+  schedule:
+    # Run at minute 1 and 55 of every hour, but time-gate to LA 00:01 and 23:55 to handle DST shifts reliably
+    - cron: '1 * * * *'
+    - cron: '55 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Time gate (America/Los_Angeles)
+        id: timegate
+        run: |
+          LA_TIME=$(TZ=America/Los_Angeles date +'%H:%M')
+          echo "Local LA time: $LA_TIME"
+          if [ "$LA_TIME" = "00:01" ] || [ "$LA_TIME" = "23:55" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+        if: steps.timegate.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
+
+      - name: Install dependencies
+        run: npm ci
+        if: steps.timegate.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
+
+      - name: Install Playwright browsers and OS deps
+        uses: microsoft/playwright-github-action@v1
+        with:
+          with-deps: true
+        if: steps.timegate.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
+
+      - name: Run scraper (headless)
+        env:
+          MEDSTAT_EMAIL: ${{ secrets.MEDSTAT_EMAIL }}
+          MEDSTAT_PASSWORD: ${{ secrets.MEDSTAT_PASSWORD }}
+        run: npx playwright test tests/bluestar_all.spec.ts --project=chromium --headless
+        if: steps.timegate.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
+
+      - name: Upload data artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bluestar-data
+          path: |
+            data/products_all.xlsx
+            data/products_all.json
+            data/product_urls_all.json
+          if-no-files-found: warn
+        if: steps.timegate.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
+
+      - name: Commit and push updated data to repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/products_all.xlsx data/products_all.json data/product_urls_all.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: automated scrape [skip ci]"
+            git push
+          else
+            echo "No changes to commit."
+          fi
+        if: steps.timegate.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
+

@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "@playwright/test": "^1.54.2",
+    "dotenv": "^16.4.5",
+    "exceljs": "^4.4.0"
+  },
+  "scripts": {
+    "test": "playwright test",
+    "scrape:page1": "playwright test tests/bluestar.spec.ts --headed --project=chromium",
+    "scrape:all": "playwright test tests/bluestar_all.spec.ts --headed --project=chromium"
+  }
+}

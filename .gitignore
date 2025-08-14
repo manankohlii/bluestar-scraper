@@ -1,0 +1,21 @@
+# Node
+node_modules/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Playwright / test artifacts
+test-results/
+playwright-report/
+
+# Excel lock/temp files
+data/~$*.xlsx
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/

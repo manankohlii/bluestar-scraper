@@ -178,40 +178,41 @@ test('Scrape BLUESTAR page 1 products and save data', async ({ page }) => {
       'PRODUCT URL',
     ];
 
-    let headers: string[] = [];
+    // Canonical columns and header enforcement to avoid index drift
+    const columnDefs = [
+      { header: 'DATE', key: 'runDate', width: 12 },
+      { header: 'TIME', key: 'runTime', width: 18 },
+      { header: 'Item Name', key: 'productName', width: 50 },
+      { header: 'SKU', key: 'sku', width: 30 },
+      { header: 'DESCRIPTION', key: 'description', width: 80 },
+      { header: 'MPN', key: 'mpn', width: 30 },
+      { header: 'MANUFACTURER', key: 'manufacturer', width: 30 },
+      { header: 'PRICE', key: 'price', width: 15 },
+      { header: 'STOCK', key: 'stock', width: 15 },
+      { header: 'PRODUCT URL', key: 'productUrl', width: 80 },
+    ];
     if (sheet.rowCount === 0) {
-      headers = defaultHeaders;
-      sheet.columns = [
-        { header: 'DATE', key: 'runDate', width: 12 },
-        { header: 'TIME', key: 'runTime', width: 18 },
-        { header: 'Item Name', key: 'productName', width: 50 },
-        { header: 'SKU', key: 'sku', width: 30 },
-        { header: 'DESCRIPTION', key: 'description', width: 80 },
-        { header: 'MPN', key: 'mpn', width: 30 },
-        { header: 'MANUFACTURER', key: 'manufacturer', width: 30 },
-        { header: 'PRICE', key: 'price', width: 15 },
-        { header: 'STOCK', key: 'stock', width: 15 },
-        { header: 'PRODUCT URL', key: 'productUrl', width: 80 },
-      ];
+      sheet.columns = columnDefs;
     } else {
       const headerRow = sheet.getRow(1);
-      headers = headerRow.values
-        .slice(1)
-        .map((v) => (typeof v === 'string' ? v : (v as any)?.richText?.map((rt: any) => rt.text).join('') || '')) as string[];
-      if (!headers.includes('MANUFACTURER')) {
-        headers.push('MANUFACTURER');
-        headerRow.values = [undefined, ...headers];
-        headerRow.commit();
-      }
+      headerRow.values = [
+        undefined,
+        'DATE',
+        'TIME',
+        'Item Name',
+        'SKU',
+        'DESCRIPTION',
+        'MPN',
+        'MANUFACTURER',
+        'PRICE',
+        'STOCK',
+        'PRODUCT URL',
+      ];
+      headerRow.commit();
+      sheet.columns = columnDefs;
     }
 
-    const headerIndex: Record<string, number> = {};
-    headers.forEach((h, idx) => {
-      headerIndex[h] = idx + 1;
-    });
-
-    const priceColIdx = headerIndex['PRICE'];
-    if (priceColIdx) sheet.getColumn(priceColIdx).numFmt = '$#,##0.00';
+    try { sheet.getColumn('price').numFmt = '$#,##0.00'; } catch {}
 
     const parsePrice = (p: string | null): number | null => {
       if (!p) return null;
@@ -231,22 +232,20 @@ test('Scrape BLUESTAR page 1 products and save data', async ({ page }) => {
     const runTime = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', hour: '2-digit', minute: '2-digit', hour12: true, timeZoneName: 'short' }).format(now);
 
     for (const rec of records) {
-      const rowValues: any[] = [];
-      // ExcelJS rows are 1-based; index 0 must be undefined to avoid column shift
-      rowValues[0] = undefined;
-      rowValues[headerIndex['DATE']] = runDate;
-      rowValues[headerIndex['TIME']] = runTime;
-      rowValues[headerIndex['Item Name']] = rec.productName ?? null;
-      rowValues[headerIndex['SKU']] = rec.sku ?? null;
-      rowValues[headerIndex['DESCRIPTION']] = rec.description ?? null;
-      rowValues[headerIndex['MPN']] = rec.mpn ?? null;
-      if (headerIndex['MANUFACTURER']) rowValues[headerIndex['MANUFACTURER']] = rec.manufacturer ?? null;
       const priceNum = parsePrice(rec.price);
-      rowValues[headerIndex['PRICE']] = priceNum ?? rec.price ?? null;
       const stockNum = parseStock(rec.stock);
-      rowValues[headerIndex['STOCK']] = stockNum ?? rec.stock ?? null;
-      rowValues[headerIndex['PRODUCT URL']] = rec.productUrl ?? null;
-      sheet.addRow(rowValues);
+      sheet.addRow({
+        runDate,
+        runTime,
+        productName: rec.productName ?? null,
+        sku: rec.sku ?? null,
+        description: rec.description ?? null,
+        mpn: rec.mpn ?? null,
+        manufacturer: rec.manufacturer ?? null,
+        price: priceNum ?? (rec.price ?? null),
+        stock: stockNum ?? (rec.stock ?? null),
+        productUrl: rec.productUrl ?? null,
+      });
     }
     sheet.views = [{ state: 'frozen', ySplit: 1 }];
 

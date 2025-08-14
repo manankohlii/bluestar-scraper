@@ -129,59 +129,47 @@ async function writeExcel(records: ProductRecord[], excelFilename: string): Prom
     sheet = workbook.addWorksheet('Products');
   }
 
-  // Build or extend headers
-  const defaultHeaders = [
-    'DATE',
-    'TIME',
-    'Item Name',
-    'SKU',
-    'DESCRIPTION',
-    'MPN',
-    'MANUFACTURER',
-    'PRICE',
-    'STOCK',
-    'PRODUCT URL',
+  // Canonical columns definition (order + keys)
+  const columnDefs = [
+    { header: 'DATE', key: 'runDate', width: 12 },
+    { header: 'TIME', key: 'runTime', width: 18 },
+    { header: 'Item Name', key: 'productName', width: 50 },
+    { header: 'SKU', key: 'sku', width: 30 },
+    { header: 'DESCRIPTION', key: 'description', width: 80 },
+    { header: 'MPN', key: 'mpn', width: 30 },
+    { header: 'MANUFACTURER', key: 'manufacturer', width: 30 },
+    { header: 'PRICE', key: 'price', width: 15 },
+    { header: 'STOCK', key: 'stock', width: 15 },
+    { header: 'PRODUCT URL', key: 'productUrl', width: 80 },
   ];
 
-  let headers: string[] = [];
+  // Ensure header row matches and keys are set for object-based addRow
   if (sheet.rowCount === 0) {
-    headers = defaultHeaders;
-    sheet.columns = [
-      { header: 'DATE', key: 'runDate', width: 12 },
-      { header: 'TIME', key: 'runTime', width: 18 },
-      { header: 'Item Name', key: 'productName', width: 50 },
-      { header: 'SKU', key: 'sku', width: 30 },
-      { header: 'DESCRIPTION', key: 'description', width: 80 },
-      { header: 'MPN', key: 'mpn', width: 30 },
-      { header: 'MANUFACTURER', key: 'manufacturer', width: 30 },
-      { header: 'PRICE', key: 'price', width: 15 },
-      { header: 'STOCK', key: 'stock', width: 15 },
-      { header: 'PRODUCT URL', key: 'productUrl', width: 80 },
-    ];
+    sheet.columns = columnDefs;
   } else {
     const headerRow = sheet.getRow(1);
-    headers = headerRow.values
-      .slice(1)
-      .map((v) => (typeof v === 'string' ? v : (v as any)?.richText?.map((rt: any) => rt.text).join('') || '')) as string[];
-    if (!headers.includes('MANUFACTURER')) {
-      headers.push('MANUFACTURER');
-      const newHeaderValues = [undefined, ...headers];
-      headerRow.values = newHeaderValues;
-      headerRow.commit();
-    }
+    headerRow.values = [
+      undefined,
+      'DATE',
+      'TIME',
+      'Item Name',
+      'SKU',
+      'DESCRIPTION',
+      'MPN',
+      'MANUFACTURER',
+      'PRICE',
+      'STOCK',
+      'PRODUCT URL',
+    ];
+    headerRow.commit();
+    // Set columns so keys map correctly without shifting
+    sheet.columns = columnDefs;
   }
 
-  // Helper: header -> column index
-  const headerIndex: Record<string, number> = {};
-  headers.forEach((h, idx) => {
-    headerIndex[h] = idx + 1; // 1-based
-  });
-
-  // Apply number formats if possible
-  const priceColIdx = headerIndex['PRICE'];
-  if (priceColIdx) {
-    sheet.getColumn(priceColIdx).numFmt = '$#,##0.00';
-  }
+  // Apply number format to PRICE column by key
+  try {
+    sheet.getColumn('price').numFmt = '$#,##0.00';
+  } catch {}
 
   const parsePriceToNumber = (p: string | null): number | null => {
     if (!p) return null;
@@ -211,27 +199,22 @@ async function writeExcel(records: ProductRecord[], excelFilename: string): Prom
     timeZoneName: 'short',
   }).format(now);
 
-  // Append rows after last row
+  // Append rows after last row using object keyed by column keys (avoid index-shift issues)
   for (const rec of records) {
-    const rowValues: any[] = [];
-    // ExcelJS rows are 1-based; index 0 must be undefined to avoid column shift
-    rowValues[0] = undefined;
-    rowValues[headerIndex['DATE']] = runDate;
-    rowValues[headerIndex['TIME']] = runTime;
-    rowValues[headerIndex['Item Name']] = rec.productName ?? null;
-    rowValues[headerIndex['SKU']] = rec.sku ?? null;
-    rowValues[headerIndex['DESCRIPTION']] = rec.description ?? null;
-    rowValues[headerIndex['MPN']] = rec.mpn ?? null;
-    if (headerIndex['MANUFACTURER']) {
-      rowValues[headerIndex['MANUFACTURER']] = rec.manufacturer ?? null;
-    }
     const priceNumber = parsePriceToNumber(rec.price);
-    rowValues[headerIndex['PRICE']] = priceNumber ?? rec.price ?? null;
     const stockNumber = parseStockToNumber(rec.stock);
-    rowValues[headerIndex['STOCK']] = stockNumber ?? rec.stock ?? null;
-    rowValues[headerIndex['PRODUCT URL']] = rec.productUrl ?? null;
-
-    sheet.addRow(rowValues);
+    sheet.addRow({
+      runDate,
+      runTime,
+      productName: rec.productName ?? null,
+      sku: rec.sku ?? null,
+      description: rec.description ?? null,
+      mpn: rec.mpn ?? null,
+      manufacturer: rec.manufacturer ?? null,
+      price: priceNumber ?? (rec.price ?? null),
+      stock: stockNumber ?? (rec.stock ?? null),
+      productUrl: rec.productUrl ?? null,
+    });
   }
   sheet.views = [{ state: 'frozen', ySplit: 1 }];
 

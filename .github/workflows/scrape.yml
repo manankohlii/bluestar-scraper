@@ -44,11 +44,11 @@ jobs:
         run: npx playwright install --with-deps chromium
         if: steps.timegate.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
 
-      - name: Run scraper (headless)
+      - name: Run scraper
         env:
           MEDSTAT_EMAIL: ${{ secrets.MEDSTAT_EMAIL }}
           MEDSTAT_PASSWORD: ${{ secrets.MEDSTAT_PASSWORD }}
-        run: npx playwright test tests/bluestar_all.spec.ts --project=chromium --headless
+        run: npx playwright test tests/bluestar_all.spec.ts --project=chromium
         if: steps.timegate.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
 
       - name: Upload data artifacts

@@ -6,7 +6,7 @@ export default defineConfig({
   timeout: 120_000,
   expect: { timeout: 10_000 },
   use: {
-    headless: false,
+    headless: process.env.CI ? true : false,
     viewport: { width: 1280, height: 800 },
     actionTimeout: 30_000,
     navigationTimeout: 45_000,

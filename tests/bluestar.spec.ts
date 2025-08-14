@@ -232,6 +232,8 @@ test('Scrape BLUESTAR page 1 products and save data', async ({ page }) => {
 
     for (const rec of records) {
       const rowValues: any[] = [];
+      // ExcelJS rows are 1-based; index 0 must be undefined to avoid column shift
+      rowValues[0] = undefined;
       rowValues[headerIndex['DATE']] = runDate;
       rowValues[headerIndex['TIME']] = runTime;
       rowValues[headerIndex['Item Name']] = rec.productName ?? null;

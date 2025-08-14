@@ -214,6 +214,8 @@ async function writeExcel(records: ProductRecord[], excelFilename: string): Prom
   // Append rows after last row
   for (const rec of records) {
     const rowValues: any[] = [];
+    // ExcelJS rows are 1-based; index 0 must be undefined to avoid column shift
+    rowValues[0] = undefined;
     rowValues[headerIndex['DATE']] = runDate;
     rowValues[headerIndex['TIME']] = runTime;
     rowValues[headerIndex['Item Name']] = rec.productName ?? null;

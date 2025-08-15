@@ -2,10 +2,8 @@ name: Scrape Bluestar
 
 on:
   schedule:
-    # Trigger every 30 minutes, but time-gate inside the job to run ONLY at
-    # America/New_York times: 08:30, 14:00, 18:30, 23:30 (DST-safe)
-    - cron: '0 * * * *'
-    - cron: '30 * * * *'
+    # Run exactly at 01:30 AM America/New_York (EDT right now -> 05:30 UTC) for testing
+    - cron: '30 5 * * *'
   workflow_dispatch:
 
 permissions:
@@ -20,38 +18,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Time gate (America/New_York)
-        id: timegate
-        run: |
-          NY_TIME=$(TZ=America/New_York date +'%H:%M')
-          echo "Local New York time: $NY_TIME"
-          case "$NY_TIME" in
-            "08:30"|"14:00"|"18:30"|"23:30")
-              echo "should_run=true" >> $GITHUB_OUTPUT ;;
-            *)
-              echo "should_run=false" >> $GITHUB_OUTPUT ;;
-          esac
+      # No time gate; schedule is precise
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-        if: steps.timegate.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
 
       - name: Install dependencies
         run: npm ci
-        if: steps.timegate.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
 
       - name: Install Playwright browsers and OS deps
         run: npx playwright install --with-deps chromium
-        if: steps.timegate.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
 
       - name: Run scraper
         env:
           MEDSTAT_EMAIL: ${{ secrets.MEDSTAT_EMAIL }}
           MEDSTAT_PASSWORD: ${{ secrets.MEDSTAT_PASSWORD }}
         run: npx playwright test tests/bluestar_all.spec.ts --project=chromium
-        if: steps.timegate.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
 
       - name: Upload data artifacts
         uses: actions/upload-artifact@v4
@@ -62,7 +46,6 @@ jobs:
             data/products_all.json
             data/product_urls_all.json
           if-no-files-found: warn
-        if: steps.timegate.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
 
       - name: Commit and push updated data to repository
         run: |
@@ -75,5 +58,4 @@ jobs:
           else
             echo "No changes to commit."
           fi
-        if: steps.timegate.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
 

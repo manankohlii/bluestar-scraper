@@ -2,9 +2,10 @@ name: Scrape Bluestar
 
 on:
   schedule:
-    # Run at minute 1 and 55 of every hour, but time-gate to LA 00:01 and 23:55 to handle DST shifts reliably
-    - cron: '1 * * * *'
-    - cron: '55 * * * *'
+    # Trigger every 30 minutes, but time-gate inside the job to run ONLY at
+    # America/New_York times: 08:30, 14:00, 18:30, 23:30 (DST-safe)
+    - cron: '0 * * * *'
+    - cron: '30 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -19,16 +20,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Time gate (America/Los_Angeles)
+      - name: Time gate (America/New_York)
         id: timegate
         run: |
-          LA_TIME=$(TZ=America/Los_Angeles date +'%H:%M')
-          echo "Local LA time: $LA_TIME"
-          if [ "$LA_TIME" = "00:01" ] || [ "$LA_TIME" = "23:55" ]; then
-            echo "should_run=true" >> $GITHUB_OUTPUT
-          else
-            echo "should_run=false" >> $GITHUB_OUTPUT
-          fi
+          NY_TIME=$(TZ=America/New_York date +'%H:%M')
+          echo "Local New York time: $NY_TIME"
+          case "$NY_TIME" in
+            "08:30"|"14:00"|"18:30"|"23:30")
+              echo "should_run=true" >> $GITHUB_OUTPUT ;;
+            *)
+              echo "should_run=false" >> $GITHUB_OUTPUT ;;
+          esac
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
